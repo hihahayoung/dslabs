@@ -1,4 +1,4 @@
-"""Toy KV replication demo: single-leader vs multi-leader (no Raft).
+"""Toy KV replication demo: single-leader vs multi-leader.
 
 This script uses the deterministic simulator to illustrate how read results
 depend on replication timing under two trivial strategies:
@@ -6,7 +6,7 @@ depend on replication timing under two trivial strategies:
 - single-leader: all writes go to node n1; n1 forwards updates to others.
 - multi-leader: any node can accept writes and broadcasts to others.
 
-Workload: client A writes x=1 to node n1; client B immediately reads x on n2.
+Workload: Client A writes x=1 to node n2; client B immediately reads x on n2.
 We compare the immediate and eventual outcomes.
 """
 
@@ -80,37 +80,32 @@ class KvNode:
             raise ValueError(f"Unknown type in message {msg!r}")
 
 
-def run_scenario(mode: str, verbose: bool = False):
+def run_scenario(mode: str):
     clock = SimClock()
     scheduler = SimScheduler(clock)
-    network = SimNetwork(scheduler, seed=7)
-    peers = ["n1", "n2", "n3"]
-    nodes: Dict[str, KvNode] = {}
-    for nid in peers:
-        node = KvNode(nid, peers, transport=network, scheduler=scheduler, mode=mode)
+    network = SimNetwork(scheduler, seed=123)
+
+    # Create the nodes on the network
+    node_ids = ["n1", "n2", "n3"]
+    nodes = {}
+    for nid in node_ids:
+        # Create a node object
+        node = KvNode(nid, node_ids, transport=network, scheduler=scheduler, mode=mode)
         nodes[nid] = node
+        # "Registration": Tell the network object how to deliver a message to a node object
         network.register(nid, node.on_message)
 
-    # Add realistic network latency to highlight stale reads immediately after a write.
+    # Add realistic network latency to highlight stale reads immediately after a write
     network.add_rule(delay(40, 120))
 
-    if verbose:
-        print("\nBefore put")
-        print(scheduler.dump_state())
-    # Workload: A writes to n1, B immediately reads from n2.
-    nodes["n1"].client_put("x", 1)
-    if verbose:
-        print("\nAfter put")
-        print(scheduler.dump_state())
+    # Workload: A writes to n2, B immediately reads from n2
+    nodes["n2"].client_put("x", 1)
     immediate = nodes["n2"].client_get("x")
 
-    # Advance simulated time until replication likely delivered.
+    # Let time pass until replication messages likely delivered (2 seconds)
     for _ in range(200):
         scheduler.run_due()
         clock.advance(10)
-    if verbose:
-        print("\nAfter delay")
-        print(scheduler.dump_state())
     eventual = nodes["n2"].client_get("x")
 
     return immediate, eventual
