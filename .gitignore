@@ -1,2 +1,7 @@
 dslabs.egg-info/
 __pycache__
+.DS_Store
+/venv
+/.venv
+/.claude
+/.pytest_cache
